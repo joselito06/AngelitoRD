@@ -32,7 +32,8 @@ class AngelitoRepository @Inject constructor(
             status = GroupStatus.PENDING,
             budget = budget,
             eventDate = eventDate,
-            description = description
+            description = description,
+            isLocked = false
         )
 
         val documentRef = groupsCollection.add(group).await()
@@ -53,6 +54,10 @@ class AngelitoRepository @Inject constructor(
                 return Result.failure(Exception("Grupo no encontrado"))
             }
 
+            if (group.isLocked) {
+                return Result.failure(Exception("Este grupo está bloqueado y no acepta nuevos miembros"))
+            }
+
             if (group.members.contains(userId)) {
                 return Result.failure(Exception("El usuario ya está en el grupo"))
             }
@@ -68,6 +73,81 @@ class AngelitoRepository @Inject constructor(
             ).await()
 
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Remover miembro del grupo (admin o el mismo usuario)
+     */
+    suspend fun removeMemberFromGroup(groupId: String, userId: String, requesterId: String): Result<Unit> {
+        return try {
+            val groupRef = groupsCollection.document(groupId)
+            val group = groupRef.get().await().toObject<AngelitoGroup>()
+
+            if (group == null) {
+                return Result.failure(Exception("Grupo no encontrado"))
+            }
+
+            // Verificar permisos: admin o el mismo usuario
+            if (requesterId != group.adminId && requesterId != userId) {
+                return Result.failure(Exception("No tienes permiso para remover este miembro"))
+            }
+
+            // No permitir que el admin se salga
+            if (userId == group.adminId) {
+                return Result.failure(Exception("El administrador no puede salir del grupo. Debes eliminarlo."))
+            }
+
+            if (!group.members.contains(userId)) {
+                return Result.failure(Exception("El usuario no está en el grupo"))
+            }
+
+            // Si ya se hizo el sorteo, no permitir salir
+            if (group.status == GroupStatus.ASSIGNED || group.status == GroupStatus.REVEALED || group.status == GroupStatus.COMPLETED) {
+                return Result.failure(Exception("No puedes salir después de que se ha realizado el sorteo"))
+            }
+
+            val updatedMembers = group.members - userId
+
+            // Si quedan menos de 3 miembros, cambiar status a PENDING
+            val newStatus = if (updatedMembers.size >= 3) group.status else GroupStatus.PENDING
+
+            groupRef.update(
+                mapOf(
+                    "members" to updatedMembers,
+                    "status" to newStatus
+                )
+            ).await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Bloquear/Desbloquear grupo (solo admin)
+     */
+    suspend fun toggleGroupLock(groupId: String, adminId: String): Result<Boolean> {
+        return try {
+            val groupRef = groupsCollection.document(groupId)
+            val group = groupRef.get().await().toObject<AngelitoGroup>()
+
+            if (group == null) {
+                return Result.failure(Exception("Grupo no encontrado"))
+            }
+
+            if (group.adminId != adminId) {
+                return Result.failure(Exception("Solo el administrador puede bloquear/desbloquear el grupo"))
+            }
+
+            val newLockedState = !group.isLocked
+
+            groupRef.update("isLocked", newLockedState).await()
+
+            Result.success(newLockedState)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -157,9 +237,11 @@ class AngelitoRepository @Inject constructor(
      * Obtener detalles de un grupo
      */
     suspend fun getGroupDetails(groupId: String): Result<AngelitoGroup> = try {
-        val group = groupsCollection.document(groupId).get().await().toObject<AngelitoGroup>()
+        val doc = groupsCollection.document(groupId).get().await()
+        val group = doc.toObject<AngelitoGroup>()?.copy(groupId = doc.id)
+
         if (group != null) {
-            Result.success(group)
+            Result.success(group.copy(groupId = doc.id))
         } else {
             Result.failure(Exception("Grupo no encontrado"))
         }
@@ -203,5 +285,29 @@ class AngelitoRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Obtener información del usuario
+     */
+    suspend fun getUserInfo(userId: String): Result<User> = try {
+        val user = usersCollection.document(userId).get().await().toObject<User>()
+        if (user != null) {
+            Result.success(user)
+        } else {
+            Result.failure(Exception("Usuario no encontrado"))
+        }
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
+    /**
+     * Actualizar información del usuario
+     */
+    suspend fun updateUserInfo(userId: String, name: String): Result<Unit> = try {
+        usersCollection.document(userId).update("name", name).await()
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
     }
 }

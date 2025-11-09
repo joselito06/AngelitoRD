@@ -2,6 +2,7 @@ package com.example.angelitord.models
 
 import com.google.firebase.firestore.DocumentId
 
+
 data class AngelitoGroup(
     @DocumentId
     val groupId: String = "",
@@ -14,7 +15,8 @@ data class AngelitoGroup(
     val eventDate: Long? = null,
     val description: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-    val revealedAt: Long? = null // Cuando se revelen los angelitos
+    val revealedAt: Long? = null, // Cuando se revelen los angelitos
+    val isLocked: Boolean = false // Si está bloqueado no pueden unirse más personas
 )
 
 enum class GroupStatus {

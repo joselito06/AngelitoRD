@@ -3,23 +3,23 @@ package com.example.angelitord
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -29,13 +29,14 @@ import com.example.angelitord.ui.screens.CreateGroupScreen
 import com.example.angelitord.ui.screens.GroupDetailScreen
 import com.example.angelitord.ui.screens.JoinGroupScreen
 import com.example.angelitord.ui.screens.LoginScreen
+import com.example.angelitord.ui.screens.ProfileScreen
 import com.example.angelitord.ui.screens.SignUpScreen
 import com.example.angelitord.ui.theme.AngelitoRDTheme
 import com.example.angelitord.viewmodel.AuthViewModel
 import com.example.angelitord.viewmodel.GroupViewModel
+import com.example.angelitord.viewmodel.ProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -60,7 +61,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AngelitoApp(
     authViewModel: AuthViewModel = hiltViewModel(),
-    groupViewModel: GroupViewModel = hiltViewModel()
+    groupViewModel: GroupViewModel = hiltViewModel(),
+    profileViewModel: ProfileViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val currentUser by authViewModel.currentUser.collectAsState()
@@ -101,6 +103,15 @@ fun AngelitoApp(
             )
         }
 
+        composable("profile") {
+            ProfileScreen(
+                viewModel = profileViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         // Pantallas Principales (requieren autenticación)
         composable("home") {
             HomeScreenWithScaffold(
@@ -114,6 +125,9 @@ fun AngelitoApp(
                 },
                 onGroupClick = { groupId ->
                     navController.navigate("group_detail/$groupId")
+                },
+                onNavigateToProfile = {  // ← AGREGAR
+                    navController.navigate("profile")
                 }
             )
         }
@@ -147,7 +161,10 @@ fun AngelitoApp(
             val groupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
             GroupDetailScreen(
                 groupId = groupId,
-                viewModel = groupViewModel
+                viewModel = groupViewModel,
+                onNavigateBack = {  // ← Ya debería estar así
+                    navController.popBackStack()
+                }
             )
         }
     }
@@ -160,7 +177,8 @@ fun HomeScreenWithScaffold(
     authViewModel: AuthViewModel,
     onCreateGroupClick: () -> Unit,
     onJoinGroupClick: () -> Unit,
-    onGroupClick: (String) -> Unit
+    onGroupClick: (String) -> Unit,
+    onNavigateToProfile: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showOptionsDialog by remember { mutableStateOf(false) }
@@ -173,9 +191,16 @@ fun HomeScreenWithScaffold(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 ),
                 actions = {
+                    IconButton(onClick = onNavigateToProfile) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Mi Perfil"
+                        )
+                    }
+
                     IconButton(onClick = { showMenu = true }) {
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.MoreVert,
+                            imageVector = Icons.Default.MoreVert,
                             contentDescription = "Menú"
                         )
                     }
@@ -192,7 +217,7 @@ fun HomeScreenWithScaffold(
                             },
                             leadingIcon = {
                                 Icon(
-                                    androidx.compose.material.icons.Icons.Default.ExitToApp,
+                                    Icons.AutoMirrored.Filled.ExitToApp,
                                     contentDescription = null
                                 )
                             }
@@ -238,7 +263,7 @@ fun HomeScreenWithScaffold(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.AddCircle,
+                                    imageVector = Icons.Default.AddCircle,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(32.dp)
@@ -346,9 +371,9 @@ fun HomeScreen(
                 onDismissRequest = { groupToDelete = null },
                 title = { Text("Eliminar Grupo") },
                 text = {
-                    androidx.compose.foundation.layout.Column {
+                    Column {
                         Text("¿Estás seguro de que deseas eliminar este grupo?")
-                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "Esta acción no se puede deshacer.",
                             style = MaterialTheme.typography.bodySmall,
@@ -384,18 +409,18 @@ fun HomeScreen(
 @Composable
 fun EmptyGroupsScreen(modifier: Modifier = Modifier) {
     // TODO: Implementar pantalla vacía mejorada
-    androidx.compose.foundation.layout.Box(
+    Box(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = androidx.compose.ui.Alignment.Center
+        contentAlignment = Alignment.Center
     ) {
-        androidx.compose.foundation.layout.Column(
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "🎁",
                 style = MaterialTheme.typography.displayLarge
             )
-            androidx.compose.foundation.layout.Spacer(
+            Spacer(
                 modifier = Modifier.padding(16.dp)
             )
             Text(
@@ -418,12 +443,12 @@ fun GroupsList(
     onDeleteGroup: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
-    androidx.compose.foundation.lazy.LazyColumn(
+    LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(
             count = groups.size,
@@ -473,10 +498,10 @@ fun SwipeToDeleteGroupCard(
         backgroundContent = {
             val backgroundColor = when (dismissState.dismissDirection) {
                 SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                else -> androidx.compose.ui.graphics.Color.Transparent
+                else -> Color.Transparent
             }
 
-            androidx.compose.foundation.layout.Box(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 12.dp),
@@ -515,12 +540,12 @@ fun GroupCard(
             }
         )
     ) {
-        androidx.compose.foundation.layout.Column(
+        Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            androidx.compose.foundation.layout.Row(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -545,11 +570,11 @@ fun GroupCard(
                 }
             }
 
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(4.dp))
+            Spacer(modifier = Modifier.padding(4.dp))
 
-            androidx.compose.foundation.layout.Row(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
                     text = "${group.members.size} miembros",
@@ -576,7 +601,7 @@ fun GroupCard(
             }
 
             if (group.eventDate != null) {
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(4.dp))
+                Spacer(modifier = Modifier.padding(4.dp))
                 Text(
                     text = "📅 ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(group.eventDate))}",
                     style = MaterialTheme.typography.bodySmall,

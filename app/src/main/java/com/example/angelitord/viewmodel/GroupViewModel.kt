@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.angelitord.models.AngelitoGroup
 import com.example.angelitord.models.User
-import com.example.angelitord.repository.AngelitoRepository
 import com.example.angelitord.repository.UnitOfWork
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +52,10 @@ class GroupViewModel @Inject constructor(
         }
     }
 
+    fun setGroup(group: AngelitoGroup){
+        _currentGroup.value = group
+    }
+
     /**
      * Agregar miembro al grupo
      */
@@ -67,6 +70,42 @@ class GroupViewModel @Inject constructor(
                 }
                 .onFailure { error ->
                     _uiState.value = GroupUiState.Error(error.message ?: "Error al agregar miembro")
+                }
+        }
+    }
+
+    /**
+     * Remover miembro del grupo
+     */
+    fun removeMember(groupId: String, userId: String, requesterId: String) {
+        viewModelScope.launch {
+            _uiState.value = GroupUiState.Loading
+
+            repository.angelitoRepository.removeMemberFromGroup(groupId, userId, requesterId)
+                .onSuccess {
+                    _uiState.value = GroupUiState.MemberRemoved
+                    loadGroupDetails(groupId)
+                }
+                .onFailure { error ->
+                    _uiState.value = GroupUiState.Error(error.message ?: "Error al remover miembro")
+                }
+        }
+    }
+
+    /**
+     * Bloquear/Desbloquear grupo
+     */
+    fun toggleGroupLock(groupId: String, adminId: String) {
+        viewModelScope.launch {
+            _uiState.value = GroupUiState.Loading
+
+            repository.angelitoRepository.toggleGroupLock(groupId, adminId)
+                .onSuccess { isLocked ->
+                    _uiState.value = GroupUiState.GroupLockToggled(isLocked)
+                    loadGroupDetails(groupId)
+                }
+                .onFailure { error ->
+                    _uiState.value = GroupUiState.Error(error.message ?: "Error al cambiar estado del grupo")
                 }
         }
     }
@@ -180,6 +219,8 @@ sealed class GroupUiState {
     object Loading : GroupUiState()
     data class GroupCreated(val groupId: String) : GroupUiState()
     object MemberAdded : GroupUiState()
+    object MemberRemoved : GroupUiState()
+    data class GroupLockToggled(val isLocked: Boolean) : GroupUiState()
     data class DrawCompleted(val assignments: Map<String, String>) : GroupUiState()
     data class AssignmentRetrieved(val receiver: User?) : GroupUiState()
     object GroupDeleted : GroupUiState()

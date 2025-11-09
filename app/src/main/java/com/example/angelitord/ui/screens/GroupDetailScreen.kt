@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import com.google.firebase.auth.FirebaseAuth
 fun GroupDetailScreen(
     groupId: String,
     viewModel: GroupViewModel,
+    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -36,6 +38,8 @@ fun GroupDetailScreen(
 
     var showShareDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showLeaveDialog by remember { mutableStateOf(false) }
+    var showRemoveMemberDialog by remember { mutableStateOf<String?>(null) }
     var showMenu by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -43,17 +47,37 @@ fun GroupDetailScreen(
         viewModel.loadGroupDetails(groupId)
     }
 
-    // Observar cuando se elimina el grupo
+    // Observar el estado
     LaunchedEffect(uiState) {
         when (uiState) {
             is GroupUiState.GroupDeleted -> {
                 snackbarHostState.showSnackbar("Grupo eliminado exitosamente")
-                // Aquí deberías navegar hacia atrás
+                viewModel.resetState()
+                onNavigateBack()
+            }
+            is GroupUiState.MemberRemoved -> {
+                snackbarHostState.showSnackbar("Miembro removido exitosamente")
+                viewModel.resetState()
+                // Si el usuario se salió, regresar
+                if (showLeaveDialog) {
+                    onNavigateBack()
+                }
+            }
+            is GroupUiState.GroupLockToggled -> {
+                val isLocked = (uiState as GroupUiState.GroupLockToggled).isLocked
+                snackbarHostState.showSnackbar(
+                    if (isLocked) "Grupo bloqueado" else "Grupo desbloqueado"
+                )
+                viewModel.resetState()
+            }
+            is GroupUiState.DrawCompleted -> {
+                snackbarHostState.showSnackbar("¡Sorteo realizado exitosamente!")
                 viewModel.resetState()
             }
             is GroupUiState.Error -> {
                 snackbarHostState.showSnackbar(
-                    (uiState as GroupUiState.Error).message
+                    (uiState as GroupUiState.Error).message,
+                    duration = SnackbarDuration.Long
                 )
                 viewModel.resetState()
             }
@@ -65,20 +89,41 @@ fun GroupDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(group?.groupName ?: "Cargando...") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 ),
                 actions = {
-                    // Menú solo visible para el admin
-                    if (group?.adminId == currentUserId) {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Menú")
-                        }
+                    // Menú
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menú")
+                    }
 
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        // Opciones del admin
+                        if (group?.adminId == currentUserId) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (group?.isLocked == true) "Desbloquear Grupo" else "Bloquear Grupo")
+                                },
+                                onClick = {
+                                    currentUserId?.let { viewModel.toggleGroupLock(groupId, it) }
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        if (group?.isLocked == true) Icons.Default.LockOpen else Icons.Default.Lock,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Eliminar Grupo") },
                                 onClick = {
@@ -88,6 +133,25 @@ fun GroupDetailScreen(
                                 leadingIcon = {
                                     Icon(
                                         Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.error
+                                )
+                            )
+                        } else {
+                            // Opción para salir (no admin)
+                            DropdownMenuItem(
+                                text = { Text("Salir del Grupo") },
+                                onClick = {
+                                    showLeaveDialog = true
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.ExitToApp,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.error
                                     )
@@ -126,7 +190,7 @@ fun GroupDetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Estado del grupo
+                // Estado del grupo con indicador de bloqueo
                 item {
                     GroupStatusCard(currentGroup, members.size)
                     Spacer(modifier = Modifier.height(16.dp))
@@ -137,7 +201,8 @@ fun GroupDetailScreen(
                     item {
                         AdminActionsCard(
                             onInviteClick = { showShareDialog = true },
-                            canDraw = currentGroup.status == GroupStatus.READY
+                            canDraw = currentGroup.status == GroupStatus.READY,
+                            isLocked = currentGroup.isLocked
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
@@ -155,18 +220,51 @@ fun GroupDetailScreen(
 
                 // Lista de miembros
                 item {
-                    Text(
-                        text = "Miembros (${members.size})",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Miembros (${members.size})",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (currentGroup.isLocked) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Lock,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Bloqueado",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
                 items(members) { member ->
                     MemberCard(
                         member = member,
-                        isAdmin = member.userId == currentGroup.adminId
+                        isAdmin = member.userId == currentGroup.adminId,
+                        currentUserIsAdmin = currentGroup.adminId == currentUserId,
+                        canRemove = currentGroup.status == GroupStatus.PENDING || currentGroup.status == GroupStatus.READY,
+                        onRemove = { showRemoveMemberDialog = member.userId }
                     )
                 }
             }
@@ -201,10 +299,7 @@ fun GroupDetailScreen(
                     ShareOption.OTHER -> ShareHelper.shareInvitation(
                         context, group!!.groupName, adminName, groupId
                     )
-                    ShareOption.COPY -> {
-                        ShareHelper.copyToClipboard(context, groupId)
-                        // Mostrar Snackbar de confirmación
-                    }
+                    ShareOption.COPY -> ShareHelper.copyToClipboard(context, groupId)
                 }
                 showShareDialog = false
             }
@@ -222,6 +317,32 @@ fun GroupDetailScreen(
                 showDeleteDialog = false
             }
         )
+    }
+
+    // Diálogo para salir del grupo
+    if (showLeaveDialog && currentUserId != null) {
+        LeaveGroupDialog(
+            onDismiss = { showLeaveDialog = false },
+            onConfirm = {
+                viewModel.removeMember(groupId, currentUserId, currentUserId)
+                showLeaveDialog = false
+            }
+        )
+    }
+
+    // Diálogo para remover miembro
+    showRemoveMemberDialog?.let { memberId ->
+        val member = members.find { it.userId == memberId }
+        if (member != null && currentUserId != null) {
+            RemoveMemberDialog(
+                memberName = member.name,
+                onDismiss = { showRemoveMemberDialog = null },
+                onConfirm = {
+                    viewModel.removeMember(groupId, memberId, currentUserId)
+                    showRemoveMemberDialog = null
+                }
+            )
+        }
     }
 }
 
@@ -252,11 +373,35 @@ fun GroupInfoCard(group: AngelitoGroup) {
 
             group.budget?.let { budget ->
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Presupuesto: RD$ ${budget.toInt()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.AttachMoney,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Presupuesto: RD$ ${budget.toInt()}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            group.eventDate?.let { date ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.DateRange,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(date)),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
         }
     }
@@ -306,7 +451,8 @@ fun GroupStatusCard(group: AngelitoGroup, memberCount: Int) {
 @Composable
 fun AdminActionsCard(
     onInviteClick: () -> Unit,
-    canDraw: Boolean
+    canDraw: Boolean,
+    isLocked: Boolean
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -328,6 +474,34 @@ fun AdminActionsCard(
                 Icon(Icons.Default.Share, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Invitar Amigos")
+            }
+
+            if (isLocked) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "El grupo está bloqueado. Nadie más puede unirse.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
             }
         }
     }
@@ -360,8 +534,15 @@ fun MyAssignmentCard(onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MemberCard(member: User, isAdmin: Boolean) {
+fun MemberCard(
+    member: User,
+    isAdmin: Boolean,
+    currentUserIsAdmin: Boolean,
+    canRemove: Boolean,
+    onRemove: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -390,6 +571,16 @@ fun MemberCard(member: User, isAdmin: Boolean) {
                         text = "Administrador",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            // Botón para remover (solo admin puede ver y solo si no es el admin mismo)
+            if (currentUserIsAdmin && !isAdmin && canRemove) {
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        Icons.Default.RemoveCircle,
+                        contentDescription = "Expulsar",
+                        tint = MaterialTheme.colorScheme.error
                     )
                 }
             }
@@ -496,6 +687,73 @@ fun DeleteGroupDialog(
                 )
             ) {
                 Text("Eliminar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
+fun LeaveGroupDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Salir del Grupo") },
+        text = {
+            Column {
+                Text("¿Estás seguro de que deseas salir de este grupo?")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No podrás volver a unirte a menos que el administrador te invite de nuevo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Salir")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
+fun RemoveMemberDialog(
+    memberName: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Expulsar Miembro") },
+        text = {
+            Text("¿Estás seguro de que deseas expulsar a $memberName del grupo?")
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Expulsar")
             }
         },
         dismissButton = {

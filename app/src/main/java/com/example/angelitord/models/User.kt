@@ -3,7 +3,6 @@ package com.example.angelitord.models
 import com.google.firebase.firestore.DocumentId
 
 data class User(
-    @DocumentId
     val userId: String = "",
     val name: String = "",
     val email: String = "",
