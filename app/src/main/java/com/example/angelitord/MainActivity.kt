@@ -26,6 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.angelitord.models.AngelitoGroup
 import com.example.angelitord.models.GroupStatus
 import com.example.angelitord.ui.screens.CreateGroupScreen
+import com.example.angelitord.ui.screens.EditGroupScreen
 import com.example.angelitord.ui.screens.GroupDetailScreen
 import com.example.angelitord.ui.screens.JoinGroupScreen
 import com.example.angelitord.ui.screens.LoginScreen
@@ -164,8 +165,26 @@ fun AngelitoApp(
                 viewModel = groupViewModel,
                 onNavigateBack = {  // ← Ya debería estar así
                     navController.popBackStack()
+                },
+                onNavigateToEdit = {  // ← NUEVO
+                    navController.navigate("edit_group/$groupId")
                 }
             )
+        }
+
+        composable("edit_group/{groupId}") { backStackEntry ->
+            val groupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
+            val group by groupViewModel.currentGroup.collectAsState()
+
+            group?.let { currentGroup ->
+                EditGroupScreen(
+                    group = currentGroup,
+                    viewModel = groupViewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
         }
     }
 }

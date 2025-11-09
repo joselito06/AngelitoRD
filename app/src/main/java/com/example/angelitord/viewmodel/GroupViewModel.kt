@@ -52,10 +52,6 @@ class GroupViewModel @Inject constructor(
         }
     }
 
-    fun setGroup(group: AngelitoGroup){
-        _currentGroup.value = group
-    }
-
     /**
      * Agregar miembro al grupo
      */
@@ -209,6 +205,55 @@ class GroupViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Disolver sorteo (solo admin)
+     */
+    fun dissolveDraw(groupId: String, adminId: String) {
+        viewModelScope.launch {
+            _uiState.value = GroupUiState.Loading
+
+            repository.angelitoRepository.dissolveDraw(groupId, adminId)
+                .onSuccess {
+                    _uiState.value = GroupUiState.DrawDissolved
+                    loadGroupDetails(groupId)
+                }
+                .onFailure { error ->
+                    _uiState.value = GroupUiState.Error(error.message ?: "Error al disolver sorteo")
+                }
+        }
+    }
+
+    /**
+     * Editar grupo (solo admin)
+     */
+    fun updateGroup(
+        groupId: String,
+        adminId: String,
+        groupName: String,
+        budget: Double?,
+        eventDate: Long?,
+        description: String,
+        locationName: String,
+        locationLatitude: Double?,
+        locationLongitude: Double?
+    ) {
+        viewModelScope.launch {
+            _uiState.value = GroupUiState.Loading
+
+            repository.angelitoRepository.updateGroup(
+                groupId, adminId, groupName, budget, eventDate,
+                description, locationName, locationLatitude, locationLongitude
+            )
+                .onSuccess {
+                    _uiState.value = GroupUiState.GroupUpdated
+                    loadGroupDetails(groupId)
+                }
+                .onFailure { error ->
+                    _uiState.value = GroupUiState.Error(error.message ?: "Error al actualizar grupo")
+                }
+        }
+    }
+
     fun resetState() {
         _uiState.value = GroupUiState.Initial
     }
@@ -222,6 +267,8 @@ sealed class GroupUiState {
     object MemberRemoved : GroupUiState()
     data class GroupLockToggled(val isLocked: Boolean) : GroupUiState()
     data class DrawCompleted(val assignments: Map<String, String>) : GroupUiState()
+    object DrawDissolved : GroupUiState()
+    object GroupUpdated : GroupUiState()
     data class AssignmentRetrieved(val receiver: User?) : GroupUiState()
     object GroupDeleted : GroupUiState()
     data class Error(val message: String) : GroupUiState()

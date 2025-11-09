@@ -16,7 +16,10 @@ data class AngelitoGroup(
     val description: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val revealedAt: Long? = null, // Cuando se revelen los angelitos
-    val isLocked: Boolean = false // Si está bloqueado no pueden unirse más personas
+    val isLocked: Boolean = false, // Si está bloqueado no pueden unirse más personas
+    val locationName: String = "", // Nombre del lugar (ej: "Casa de Juan")
+    val locationLatitude: Double? = null, // Latitud para el mapa
+    val locationLongitude: Double? = null // Longitud para el mapa
 )
 
 enum class GroupStatus {

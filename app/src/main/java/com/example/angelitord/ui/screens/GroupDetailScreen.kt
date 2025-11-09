@@ -1,10 +1,13 @@
 package com.example.angelitord.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +30,7 @@ fun GroupDetailScreen(
     groupId: String,
     viewModel: GroupViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -40,6 +44,9 @@ fun GroupDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showRemoveMemberDialog by remember { mutableStateOf<String?>(null) }
+    var showAssignmentDialog by remember { mutableStateOf(false) }
+    var assignedUser by remember { mutableStateOf<User?>(null) }
+    var showDissolveDrawDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -74,6 +81,19 @@ fun GroupDetailScreen(
                 snackbarHostState.showSnackbar("¡Sorteo realizado exitosamente!")
                 viewModel.resetState()
             }
+            is GroupUiState.DrawDissolved -> {
+                snackbarHostState.showSnackbar("Sorteo disuelto. El grupo está listo para sortear de nuevo.")
+                viewModel.resetState()
+            }
+            is GroupUiState.GroupUpdated -> {
+                snackbarHostState.showSnackbar("Grupo actualizado exitosamente")
+                viewModel.resetState()
+            }
+            is GroupUiState.AssignmentRetrieved -> {
+                assignedUser = (uiState as GroupUiState.AssignmentRetrieved).receiver
+                showAssignmentDialog = true
+                viewModel.resetState()
+            }
             is GroupUiState.Error -> {
                 snackbarHostState.showSnackbar(
                     (uiState as GroupUiState.Error).message,
@@ -85,10 +105,13 @@ fun GroupDetailScreen(
         }
     }
 
+    // Obtener el grupo actual para usar en el menú
+    val currentGroup = group
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(group?.groupName ?: "Cargando...") },
+                title = { Text(currentGroup?.groupName ?: "Cargando...") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -108,10 +131,43 @@ fun GroupDetailScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         // Opciones del admin
-                        if (group?.adminId == currentUserId) {
+                        if (currentGroup?.adminId == currentUserId) {
+                            // Editar Grupo
+                            DropdownMenuItem(
+                                text = { Text("Editar Grupo") },
+                                onClick = {
+                                    onNavigateToEdit()  // Nueva función
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Edit, contentDescription = null)
+                                }
+                            )
+
+                            HorizontalDivider()
+
+                            // Disolver Sorteo (solo si ya se hizo)
+                            if (currentGroup?.status == GroupStatus.ASSIGNED ||
+                                currentGroup?.status == GroupStatus.REVEALED) {
+                                DropdownMenuItem(
+                                    text = { Text("Disolver Sorteo") },
+                                    onClick = {
+                                        showDissolveDrawDialog = true
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    }
+                                )
+                            }
+                            // Bloquear/Desbloquear
                             DropdownMenuItem(
                                 text = {
-                                    Text(if (group?.isLocked == true) "Desbloquear Grupo" else "Bloquear Grupo")
+                                    Text(if (currentGroup?.isLocked == true) "Desbloquear Grupo" else "Bloquear Grupo")
                                 },
                                 onClick = {
                                     currentUserId?.let { viewModel.toggleGroupLock(groupId, it) }
@@ -119,11 +175,12 @@ fun GroupDetailScreen(
                                 },
                                 leadingIcon = {
                                     Icon(
-                                        if (group?.isLocked == true) Icons.Default.LockOpen else Icons.Default.Lock,
+                                        if (currentGroup?.isLocked == true) Icons.Default.LockOpen else Icons.Default.Lock,
                                         contentDescription = null
                                     )
                                 }
                             )
+                            // Eliminar Grupo
                             DropdownMenuItem(
                                 text = { Text("Eliminar Grupo") },
                                 onClick = {
@@ -166,7 +223,7 @@ fun GroupDetailScreen(
             )
         },
         floatingActionButton = {
-            if (group?.adminId == currentUserId && group?.status == GroupStatus.READY) {
+            if (currentGroup?.adminId == currentUserId && currentGroup?.status == GroupStatus.READY) {
                 FloatingActionButton(
                     onClick = { viewModel.performDraw(groupId) }
                 ) {
@@ -177,7 +234,7 @@ fun GroupDetailScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
 
-        group?.let { currentGroup ->
+        currentGroup?.let { groupData  ->
             LazyColumn(
                 modifier = modifier
                     .fillMaxSize()
@@ -186,13 +243,30 @@ fun GroupDetailScreen(
             ) {
                 // Información del grupo
                 item {
-                    GroupInfoCard(currentGroup)
+                    GroupInfoCard(groupData)
                     Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                if (groupData.locationName.isNotBlank()) {
+                    item {
+                        LocationCard(
+                            locationName = groupData.locationName,
+                            latitude = groupData.locationLatitude,
+                            longitude = groupData.locationLongitude,
+                            onOpenMap = {
+                                // Abrir Google Maps
+                                val uri = "geo:${groupData.locationLatitude},${groupData.locationLongitude}?q=${groupData.locationName}"
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+                                context.startActivity(intent)
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
 
                 // Estado del grupo con indicador de bloqueo
                 item {
-                    GroupStatusCard(currentGroup, members.size)
+                    GroupStatusCard(groupData, members.size)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
@@ -201,15 +275,15 @@ fun GroupDetailScreen(
                     item {
                         AdminActionsCard(
                             onInviteClick = { showShareDialog = true },
-                            canDraw = currentGroup.status == GroupStatus.READY,
-                            isLocked = currentGroup.isLocked
+                            canDraw = groupData.status == GroupStatus.READY,
+                            isLocked = groupData.isLocked
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
 
                 // Mi asignación (si ya se hizo el sorteo)
-                if (currentGroup.status == GroupStatus.ASSIGNED && currentUserId != null) {
+                if (groupData.status == GroupStatus.ASSIGNED && currentUserId != null) {
                     item {
                         MyAssignmentCard(
                             onClick = { viewModel.getMyAssignment(groupId, currentUserId) }
@@ -230,7 +304,7 @@ fun GroupDetailScreen(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
-                        if (currentGroup.isLocked) {
+                        if (groupData.isLocked) {
                             Surface(
                                 color = MaterialTheme.colorScheme.errorContainer,
                                 shape = MaterialTheme.shapes.small
@@ -261,9 +335,9 @@ fun GroupDetailScreen(
                 items(members) { member ->
                     MemberCard(
                         member = member,
-                        isAdmin = member.userId == currentGroup.adminId,
-                        currentUserIsAdmin = currentGroup.adminId == currentUserId,
-                        canRemove = currentGroup.status == GroupStatus.PENDING || currentGroup.status == GroupStatus.READY,
+                        isAdmin = member.userId == groupData.adminId,
+                        currentUserIsAdmin = groupData.adminId == currentUserId,
+                        canRemove = groupData.status == GroupStatus.PENDING || groupData.status == GroupStatus.READY,
                         onRemove = { showRemoveMemberDialog = member.userId }
                     )
                 }
@@ -277,27 +351,27 @@ fun GroupDetailScreen(
     }
 
     // Diálogo para compartir invitación
-    if (showShareDialog && group != null) {
+    if (showShareDialog && currentGroup != null) {
         ShareInvitationDialog(
-            group = group!!,
+            group = currentGroup,
             onDismiss = { showShareDialog = false },
             onShareOption = { option ->
-                val adminName = members.find { it.userId == group!!.adminId }?.name ?: "Admin"
+                val adminName = members.find { it.userId == currentGroup.adminId }?.name ?: "Admin"
                 when (option) {
                     ShareOption.WHATSAPP -> ShareHelper.shareViaWhatsApp(
-                        context, null, group!!.groupName, adminName, groupId
+                        context, null, currentGroup.groupName, adminName, groupId
                     )
                     ShareOption.EMAIL -> ShareHelper.shareViaEmail(
-                        context, null, group!!.groupName, adminName, groupId
+                        context, null, currentGroup.groupName, adminName, groupId
                     )
                     ShareOption.SMS -> ShareHelper.shareViaSMS(
-                        context, null, group!!.groupName, adminName, groupId
+                        context, null, currentGroup.groupName, adminName, groupId
                     )
                     ShareOption.TELEGRAM -> ShareHelper.shareViaTelegram(
-                        context, group!!.groupName, adminName, groupId
+                        context, currentGroup.groupName, adminName, groupId
                     )
                     ShareOption.OTHER -> ShareHelper.shareInvitation(
-                        context, group!!.groupName, adminName, groupId
+                        context, currentGroup.groupName, adminName, groupId
                     )
                     ShareOption.COPY -> ShareHelper.copyToClipboard(context, groupId)
                 }
@@ -344,6 +418,29 @@ fun GroupDetailScreen(
             )
         }
     }
+
+    // Diálogo para mostrar el angelito asignado
+    if (showAssignmentDialog && assignedUser != null) {
+        AssignmentDialog(
+            assignedUser = assignedUser!!,
+            onDismiss = {
+                showAssignmentDialog = false
+                assignedUser = null
+            }
+        )
+    }
+
+    // Diálogo para disolver sorteo
+    if (showDissolveDrawDialog && currentUserId != null) {
+        DissolveDrawDialog(
+            onDismiss = { showDissolveDrawDialog = false },
+            onConfirm = {
+                viewModel.dissolveDraw(groupId, currentUserId)
+                showDissolveDrawDialog = false
+            }
+        )
+    }
+
 }
 
 @Composable
@@ -614,7 +711,7 @@ fun ShareInvitationDialog(
                     onClick = { onShareOption(ShareOption.EMAIL) }
                 )
                 ShareOptionButton(
-                    icon = Icons.Default.Message,
+                    icon = Icons.AutoMirrored.Filled.Message,
                     text = "SMS",
                     onClick = { onShareOption(ShareOption.SMS) }
                 )
@@ -762,5 +859,246 @@ fun RemoveMemberDialog(
             }
         }
     )
+}
+
+@Composable
+fun AssignmentDialog(
+    assignedUser: User,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.CardGiftcard,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        title = {
+            Text(
+                "🎁 Tu Angelito",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = assignedUser.name,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        if (assignedUser.email.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = assignedUser.email,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "¡Prepara un regalo especial para esta persona! 🎁",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Recuerda: Es un secreto, ¡no se lo digas a nadie!",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Entendido")
+            }
+        }
+    )
+}
+
+// Diálogo para disolver sorteo
+@Composable
+fun DissolveDrawDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.tertiary
+            )
+        },
+        title = { Text("Disolver Sorteo") },
+        text = {
+            Column {
+                Text("¿Estás seguro de que deseas disolver el sorteo actual?")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "• Se eliminarán todas las asignaciones actuales\n" +
+                            "• El grupo volverá al estado 'Listo para sortear'\n" +
+                            "• Podrás realizar un nuevo sorteo después",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Los miembros perderán sus asignaciones actuales",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary
+                )
+            ) {
+                Text("Disolver Sorteo")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+// Componente para mostrar ubicación
+@Composable
+fun LocationCard(
+    locationName: String,
+    latitude: Double?,
+    longitude: Double?,
+    onOpenMap: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Place,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Lugar del Evento",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        text = locationName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+
+            if (latitude != null && longitude != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onOpenMap,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Default.Map, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ver en el Mapa")
+                }
+            }
+        }
+    }
 }
 

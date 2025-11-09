@@ -288,6 +288,89 @@ class AngelitoRepository @Inject constructor(
     }
 
     /**
+     * Disolver sorteo (reiniciar el grupo al estado READY o PENDING)
+     */
+    suspend fun dissolveDraw(groupId: String, adminId: String): Result<Unit> {
+        return try {
+            val groupRef = groupsCollection.document(groupId)
+            val group = groupRef.get().await().toObject<AngelitoGroup>()
+
+            if (group == null) {
+                return Result.failure(Exception("Grupo no encontrado"))
+            }
+
+            if (group.adminId != adminId) {
+                return Result.failure(Exception("Solo el administrador puede disolver el sorteo"))
+            }
+
+            if (group.status != GroupStatus.ASSIGNED && group.status != GroupStatus.REVEALED) {
+                return Result.failure(Exception("No hay sorteo para disolver"))
+            }
+
+            // Calcular nuevo status
+            val newStatus = if (group.members.size >= 3) GroupStatus.READY else GroupStatus.PENDING
+
+            groupRef.update(
+                mapOf(
+                    "assignments" to emptyMap<String, String>(),
+                    "status" to newStatus,
+                    "revealedAt" to null
+                )
+            ).await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Editar información del grupo
+     */
+    suspend fun updateGroup(
+        groupId: String,
+        adminId: String,
+        groupName: String,
+        budget: Double?,
+        eventDate: Long?,
+        description: String,
+        locationName: String,
+        locationLatitude: Double?,
+        locationLongitude: Double?
+    ): Result<Unit> {
+        return try {
+            val groupRef = groupsCollection.document(groupId)
+            val group = groupRef.get().await().toObject<AngelitoGroup>()
+
+            if (group == null) {
+                return Result.failure(Exception("Grupo no encontrado"))
+            }
+
+            if (group.adminId != adminId) {
+                return Result.failure(Exception("Solo el administrador puede editar el grupo"))
+            }
+
+            val updates = mutableMapOf<String, Any?>(
+                "groupName" to groupName,
+                "description" to description,
+                "locationName" to locationName
+            )
+
+            // Solo actualizar si no son null o si se quiere limpiar
+            if (budget != null) updates["budget"] = budget
+            if (eventDate != null) updates["eventDate"] = eventDate
+            if (locationLatitude != null) updates["locationLatitude"] = locationLatitude
+            if (locationLongitude != null) updates["locationLongitude"] = locationLongitude
+
+            groupRef.update(updates).await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Obtener información del usuario
      */
     suspend fun getUserInfo(userId: String): Result<User> = try {
