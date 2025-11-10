@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
@@ -25,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.angelitord.models.AngelitoGroup
 import com.example.angelitord.models.GroupStatus
+import com.example.angelitord.ui.components.UserProfileMenu
 import com.example.angelitord.ui.screens.CreateGroupScreen
 import com.example.angelitord.ui.screens.EditGroupScreen
 import com.example.angelitord.ui.screens.GroupDetailScreen
@@ -118,6 +121,7 @@ fun AngelitoApp(
             HomeScreenWithScaffold(
                 groupViewModel = groupViewModel,
                 authViewModel = authViewModel,
+                profileViewModel = profileViewModel,
                 onCreateGroupClick = {
                     navController.navigate("create_group")
                 },
@@ -129,6 +133,10 @@ fun AngelitoApp(
                 },
                 onNavigateToProfile = {  // ← AGREGAR
                     navController.navigate("profile")
+                },
+                onNavigateToSettings = {  // ← Para futuro
+                    // navController.navigate("settings")
+                    // Por ahora, muestra un mensaje
                 }
             )
         }
@@ -194,23 +202,46 @@ fun AngelitoApp(
 fun HomeScreenWithScaffold(
     groupViewModel: GroupViewModel,
     authViewModel: AuthViewModel,
+    profileViewModel: ProfileViewModel,
     onCreateGroupClick: () -> Unit,
     onJoinGroupClick: () -> Unit,
     onGroupClick: (String) -> Unit,
-    onNavigateToProfile: () -> Unit
+    onNavigateToProfile: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showOptionsDialog by remember { mutableStateOf(false) }
 
+    // Obtener información del usuario
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userInfo by profileViewModel.userInfo.collectAsState()
+    val groupCount by profileViewModel.groupCount.collectAsState()
+
+    // Cargar información del usuario
+    LaunchedEffect(currentUser?.uid) {
+        currentUser?.uid?.let { profileViewModel.loadUserInfo(it) }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Angelito RD") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_gift),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Angelito RD")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 ),
                 actions = {
-                    IconButton(onClick = onNavigateToProfile) {
+                    /*IconButton(onClick = onNavigateToProfile) {
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = "Mi Perfil"
@@ -241,7 +272,18 @@ fun HomeScreenWithScaffold(
                                 )
                             }
                         )
-                    }
+                    }*/
+                    // ✅ NUEVO MENÚ DE USUARIO
+                    UserProfileMenu(
+                        user = userInfo,
+                        email = currentUser?.email ?: "",
+                        groupCount = groupCount,
+                        onProfileClick = onNavigateToProfile,
+                        onSettingsClick = onNavigateToSettings,
+                        onSignOut = {
+                            authViewModel.signOut()
+                        }
+                    )
                 }
             )
         },
@@ -372,15 +414,14 @@ fun HomeScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         if (groups.isEmpty()) {
-            EmptyGroupsScreen(modifier = modifier)
+            EmptyGroupsScreen()
         } else {
             GroupsList(
                 groups = groups,
                 onGroupClick = onGroupClick,
                 onDeleteGroup = { groupId ->
                     groupToDelete = groupId
-                },
-                modifier = modifier
+                }
             )
         }
 
@@ -426,10 +467,10 @@ fun HomeScreen(
 }
 
 @Composable
-fun EmptyGroupsScreen(modifier: Modifier = Modifier) {
+fun EmptyGroupsScreen() {
     // TODO: Implementar pantalla vacía mejorada
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -459,13 +500,12 @@ fun EmptyGroupsScreen(modifier: Modifier = Modifier) {
 fun GroupsList(
     groups: List<AngelitoGroup>,
     onGroupClick: (String) -> Unit,
-    onDeleteGroup: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onDeleteGroup: (String) -> Unit
 ) {
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

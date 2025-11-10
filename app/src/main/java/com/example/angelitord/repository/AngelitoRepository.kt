@@ -10,7 +10,7 @@ import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 class AngelitoRepository @Inject constructor(
-    private val firestore: FirebaseFirestore
+    firestore: FirebaseFirestore
 ) {
     private val groupsCollection = firestore.collection("angelito_groups")
     private val usersCollection = firestore.collection("users")
@@ -48,11 +48,9 @@ class AngelitoRepository @Inject constructor(
     suspend fun addMemberToGroup(groupId: String, userId: String): Result<Unit> {
         return try {
             val groupRef = groupsCollection.document(groupId)
-            val group = groupRef.get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+            val group = groupRef.get().await().toObject<AngelitoGroup>() ?: return Result.failure(
+                Exception("Grupo no encontrado")
+            )
 
             if (group.isLocked) {
                 return Result.failure(Exception("Este grupo está bloqueado y no acepta nuevos miembros"))
@@ -84,11 +82,9 @@ class AngelitoRepository @Inject constructor(
     suspend fun removeMemberFromGroup(groupId: String, userId: String, requesterId: String): Result<Unit> {
         return try {
             val groupRef = groupsCollection.document(groupId)
-            val group = groupRef.get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+            val group = groupRef.get().await().toObject<AngelitoGroup>() ?: return Result.failure(
+                Exception("Grupo no encontrado")
+            )
 
             // Verificar permisos: admin o el mismo usuario
             if (requesterId != group.adminId && requesterId != userId) {
@@ -133,11 +129,9 @@ class AngelitoRepository @Inject constructor(
     suspend fun toggleGroupLock(groupId: String, adminId: String): Result<Boolean> {
         return try {
             val groupRef = groupsCollection.document(groupId)
-            val group = groupRef.get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+            val group = groupRef.get().await().toObject<AngelitoGroup>() ?: return Result.failure(
+                Exception("Grupo no encontrado")
+            )
 
             if (group.adminId != adminId) {
                 return Result.failure(Exception("Solo el administrador puede bloquear/desbloquear el grupo"))
@@ -159,11 +153,9 @@ class AngelitoRepository @Inject constructor(
     suspend fun performDraw(groupId: String): Result<Map<String, String>> {
         return try {
             val groupRef = groupsCollection.document(groupId)
-            val group = groupRef.get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+            val group = groupRef.get().await().toObject<AngelitoGroup>() ?: return Result.failure(
+                Exception("Grupo no encontrado")
+            )
 
             if (group.status != GroupStatus.READY) {
                 return Result.failure(Exception("El grupo no está listo para el sorteo"))
@@ -196,19 +188,14 @@ class AngelitoRepository @Inject constructor(
     suspend fun getMyAssignment(groupId: String, userId: String): Result<User?> {
         return try {
             val group = groupsCollection.document(groupId).get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+                ?: return Result.failure(Exception("Grupo no encontrado"))
 
             if (group.status != GroupStatus.ASSIGNED) {
                 return Result.failure(Exception("Aún no se han asignado los angelitos"))
             }
 
             val receiverId = group.assignments[userId]
-            if (receiverId == null) {
-                return Result.failure(Exception("No tienes asignación en este grupo"))
-            }
+                ?: return Result.failure(Exception("No tienes asignación en este grupo"))
 
             val receiver = usersCollection.document(receiverId).get().await().toObject<User>()
             Result.success(receiver)
@@ -267,11 +254,9 @@ class AngelitoRepository @Inject constructor(
     suspend fun deleteGroup(groupId: String, userId: String): Result<Unit> {
         return try {
             val groupRef = groupsCollection.document(groupId)
-            val group = groupRef.get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+            val group = groupRef.get().await().toObject<AngelitoGroup>() ?: return Result.failure(
+                Exception("Grupo no encontrado")
+            )
 
             // Verificar que el usuario sea el administrador
             if (group.adminId != userId) {
@@ -293,11 +278,9 @@ class AngelitoRepository @Inject constructor(
     suspend fun dissolveDraw(groupId: String, adminId: String): Result<Unit> {
         return try {
             val groupRef = groupsCollection.document(groupId)
-            val group = groupRef.get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+            val group = groupRef.get().await().toObject<AngelitoGroup>() ?: return Result.failure(
+                Exception("Grupo no encontrado")
+            )
 
             if (group.adminId != adminId) {
                 return Result.failure(Exception("Solo el administrador puede disolver el sorteo"))
@@ -340,11 +323,9 @@ class AngelitoRepository @Inject constructor(
     ): Result<Unit> {
         return try {
             val groupRef = groupsCollection.document(groupId)
-            val group = groupRef.get().await().toObject<AngelitoGroup>()
-
-            if (group == null) {
-                return Result.failure(Exception("Grupo no encontrado"))
-            }
+            val group = groupRef.get().await().toObject<AngelitoGroup>() ?: return Result.failure(
+                Exception("Grupo no encontrado")
+            )
 
             if (group.adminId != adminId) {
                 return Result.failure(Exception("Solo el administrador puede editar el grupo"))

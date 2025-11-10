@@ -1,6 +1,5 @@
 package com.example.angelitord.ui.screens
 
-
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll

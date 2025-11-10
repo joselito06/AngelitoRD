@@ -3,9 +3,7 @@ package com.example.angelitord.notifications
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.angelitord.R
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -32,19 +30,17 @@ class AngelitoFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun showNotification(title: String, body: String, data: Map<String, String>) {
         val channelId = "angelito_channel"
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
         // Crear canal de notificación para Android 8.0+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Notificaciones de Angelito",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notificaciones sobre sorteos y actualizaciones de grupos"
-            }
-            notificationManager.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            channelId,
+            "Notificaciones de Angelito",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Notificaciones sobre sorteos y actualizaciones de grupos"
         }
+        notificationManager.createNotificationChannel(channel)
 
         // Intent para abrir la app al tocar la notificación
         val intent = Intent(this, Class.forName("com.angelitord.MainActivity")).apply {
