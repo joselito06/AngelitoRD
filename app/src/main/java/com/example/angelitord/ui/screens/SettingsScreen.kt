@@ -6,6 +6,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.angelitord.ui.components.AppTopBar
 import com.example.angelitord.viewmodel.SettingsUiState
 import com.example.angelitord.viewmodel.SettingsViewModel
 
@@ -22,13 +25,20 @@ import com.example.angelitord.viewmodel.SettingsViewModel
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToAbout: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onNavigateToAbout: () -> Unit,
+    onNavigateToTerms: () -> Unit,
+    onNavigateToPrivacy: () -> Unit,
+    onNavigateToHelp: () -> Unit,
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Debug: Imprimir cada vez que cambian las configuraciones
+    LaunchedEffect(settings) {
+        android.util.Log.d("SettingsScreen", "Settings changed: $settings")
+    }
 
     var showClearCacheDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -49,28 +59,26 @@ fun SettingsScreen(
                 )
                 viewModel.resetState()
             }
+            is SettingsUiState.AccountDeleted -> {
+                // Navegar al login cuando se elimine la cuenta
+                viewModel.resetState()
+                onNavigateBack() // Esto cerrará la sesión
+            }
             else -> {}
         }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Configuración") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+            AppTopBar(
+                title = "Configuración",
+                onNavigationClick = onNavigateBack
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
@@ -100,13 +108,25 @@ fun SettingsScreen(
             )
 
             SettingsSwitchItem(
-                icon = Icons.Default.VolumeUp,
+                icon = Icons.AutoMirrored.Filled.VolumeUp,
                 title = "Sonido",
                 subtitle = "Reproducir sonido en notificaciones",
                 checked = settings.soundEnabled,
                 onCheckedChange = { viewModel.updateSoundSetting(it) },
                 enabled = settings.notificationsEnabled
             )
+            if(settings.notificationsEnabled){
+                SettingsClickableItem(
+                    icon = Icons.Default.Send,
+                    title = "Probar Notificación",
+                    subtitle = "Enviar una notificación de prueba",
+                    onClick = {
+                        //viewModel.testNotification()
+                              },
+                    //enabled = settings.notificationsEnabled
+                )
+            }
+
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -127,7 +147,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // SECCIÓN: PRIVACIDAD
-            SectionHeader(
+            /*SectionHeader(
                 icon = Icons.Default.Security,
                 title = "Privacidad y Seguridad"
             )
@@ -147,7 +167,7 @@ fun SettingsScreen(
                 onClick = { /* TODO: Navegar a pantalla de privacidad */ }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))*/
 
             // SECCIÓN: ALMACENAMIENTO
             SectionHeader(
@@ -181,21 +201,21 @@ fun SettingsScreen(
                 icon = Icons.Default.Description,
                 title = "Términos y Condiciones",
                 subtitle = "Lee nuestros términos de servicio",
-                onClick = { /* TODO: Abrir términos */ }
+                onClick = onNavigateToTerms
             )
 
             SettingsClickableItem(
                 icon = Icons.Default.PrivacyTip,
                 title = "Política de Privacidad",
                 subtitle = "Cómo manejamos tus datos",
-                onClick = { /* TODO: Abrir política */ }
+                onClick = onNavigateToPrivacy
             )
 
             SettingsClickableItem(
-                icon = Icons.Default.Help,
+                icon = Icons.AutoMirrored.Filled.Help,
                 title = "Ayuda y Soporte",
                 subtitle = "¿Necesitas ayuda?",
-                onClick = { /* TODO: Abrir ayuda */ }
+                onClick = onNavigateToHelp
             )
 
             Spacer(modifier = Modifier.height(24.dp))

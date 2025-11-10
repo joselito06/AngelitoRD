@@ -1,8 +1,11 @@
 package com.example.angelitord
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -22,35 +25,56 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.angelitord.models.AngelitoGroup
+import com.example.angelitord.models.AppSettings
 import com.example.angelitord.models.GroupStatus
+import com.example.angelitord.ui.components.AppTopBar
+import com.example.angelitord.ui.components.AppTopBarWithLogo
 import com.example.angelitord.ui.components.UserProfileMenu
+import com.example.angelitord.ui.screens.AboutScreen
 import com.example.angelitord.ui.screens.CreateGroupScreen
 import com.example.angelitord.ui.screens.EditGroupScreen
 import com.example.angelitord.ui.screens.GroupDetailScreen
+import com.example.angelitord.ui.screens.HelpAndSupportScreen
 import com.example.angelitord.ui.screens.JoinGroupScreen
 import com.example.angelitord.ui.screens.LoginScreen
+import com.example.angelitord.ui.screens.PrivacyPolicyScreen
 import com.example.angelitord.ui.screens.ProfileScreen
 import com.example.angelitord.ui.screens.SettingsScreen
 import com.example.angelitord.ui.screens.SignUpScreen
+import com.example.angelitord.ui.screens.TermsAndConditionsScreen
 import com.example.angelitord.ui.theme.AngelitoRDTheme
 import com.example.angelitord.viewmodel.AuthViewModel
 import com.example.angelitord.viewmodel.GroupViewModel
 import com.example.angelitord.viewmodel.ProfileViewModel
+import com.example.angelitord.viewmodel.SettingsViewModel
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
+    val settingsViewModel: SettingsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
-            AngelitoRDTheme {
+
+            val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+
+            // Debug: Ver cambios de tema
+//            LaunchedEffect(settings.darkThemeEnabled) {
+//                Log.d("MainActivity", "Dark theme: ${settings.darkThemeEnabled}")
+//            }
+
+            AngelitoRDTheme(
+                darkTheme = settings.darkThemeEnabled
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -157,6 +181,9 @@ fun AngelitoApp(
                     navController.navigate("group_detail/$groupId") {
                         popUpTo("home")
                     }
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -211,7 +238,48 @@ fun AngelitoApp(
                     navController.popBackStack()
                 },
                 onNavigateToAbout = {
-                    // navController.navigate("about")
+                    navController.navigate("about")
+                },
+                onNavigateToTerms = {
+                    navController.navigate("terms")
+                },
+                onNavigateToPrivacy = {
+                    navController.navigate("privacy")
+                },
+                onNavigateToHelp = {
+                    navController.navigate("help")
+                }
+            )
+        }
+
+        composable("about") {
+            AboutScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable("terms") {
+            TermsAndConditionsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable("privacy") {
+            PrivacyPolicyScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable("help") {
+            HelpAndSupportScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -245,7 +313,7 @@ fun HomeScreenWithScaffold(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            /*TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -259,11 +327,29 @@ fun HomeScreenWithScaffold(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    //containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,  // ✅ AHORA (blanco/negro)
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
 
                     // ✅ NUEVO MENÚ DE USUARIO
+                    UserProfileMenu(
+                        user = userInfo,
+                        email = currentUser?.email ?: "",
+                        groupCount = groupCount,
+                        onProfileClick = onNavigateToProfile,
+                        onSettingsClick = onNavigateToSettings,
+                        onSignOut = {
+                            authViewModel.signOut()
+                        }
+                    )
+                }
+            )*/
+            AppTopBarWithLogo(
+                actions = {
                     UserProfileMenu(
                         user = userInfo,
                         email = currentUser?.email ?: "",

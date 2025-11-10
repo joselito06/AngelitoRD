@@ -87,6 +87,13 @@ fun LoginScreen(
                 onLoginSuccess()
                 viewModel.resetAuthState()
             }
+            is AuthState.PasswordResetSent -> {
+                snackbarHostState.showSnackbar(
+                    message = (authState as AuthState.PasswordResetSent).message,
+                    duration = SnackbarDuration.Long
+                )
+                viewModel.resetAuthState()
+            }
             is AuthState.Error -> {
                 snackbarHostState.showSnackbar(
                     message = state.message,

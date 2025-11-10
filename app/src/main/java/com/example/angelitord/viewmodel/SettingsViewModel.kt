@@ -1,8 +1,12 @@
 package com.example.angelitord.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.angelitord.models.AppSettings
+import com.example.angelitord.utils.NotificationManagerHelper
+import com.example.angelitord.utils.PreferencesManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +21,9 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
-    private val firestore: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    private val preferencesManager: PreferencesManager,
+    private val notificationManager: NotificationManagerHelper,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SettingsUiState>(SettingsUiState.Initial)
@@ -31,11 +37,22 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Cargar configuraciones guardadas
+     * Cargar configuraciones desde SharedPreferences Y Firestore
      */
     private fun loadSettings() {
         viewModelScope.launch {
             try {
+                // 1. Primero cargar desde SharedPreferences (inmediato)
+                _settings.value = AppSettings(
+                    notificationsEnabled = preferencesManager.notificationsEnabled,
+                    vibrationEnabled = preferencesManager.vibrationEnabled,
+                    soundEnabled = preferencesManager.soundEnabled,
+                    darkThemeEnabled = preferencesManager.darkThemeEnabled,
+                    analyticsEnabled = preferencesManager.analyticsEnabled,
+                    debugModeEnabled = false
+                )
+
+                // 2. Sincronizar con Firestore (background)
                 val userId = firebaseAuth.currentUser?.uid ?: return@launch
 
                 val doc = firestore.collection("user_settings")
@@ -44,18 +61,36 @@ class SettingsViewModel @Inject constructor(
                     .await()
 
                 if (doc.exists()) {
-                    _settings.value = AppSettings(
-                        notificationsEnabled = doc.getBoolean("notificationsEnabled") ?: true,
-                        vibrationEnabled = doc.getBoolean("vibrationEnabled") ?: true,
-                        soundEnabled = doc.getBoolean("soundEnabled") ?: true,
-                        darkThemeEnabled = doc.getBoolean("darkThemeEnabled") ?: false,
-                        analyticsEnabled = doc.getBoolean("analyticsEnabled") ?: true,
-                        debugModeEnabled = doc.getBoolean("debugModeEnabled") ?: false
+                    // Si hay configuraciones en Firestore, actualizarlas localmente
+                    val firestoreSettings = AppSettings(
+                        notificationsEnabled = doc.getBoolean("notificationsEnabled")
+                            ?: preferencesManager.notificationsEnabled,
+                        vibrationEnabled = doc.getBoolean("vibrationEnabled")
+                            ?: preferencesManager.vibrationEnabled,
+                        soundEnabled = doc.getBoolean("soundEnabled")
+                            ?: preferencesManager.soundEnabled,
+                        darkThemeEnabled = doc.getBoolean("darkThemeEnabled")
+                            ?: preferencesManager.darkThemeEnabled,
+                        analyticsEnabled = doc.getBoolean("analyticsEnabled")
+                            ?: preferencesManager.analyticsEnabled,
+                        debugModeEnabled = false
                     )
+
+                    // Actualizar SharedPreferences con los datos de Firestore
+                    preferencesManager.notificationsEnabled = firestoreSettings.notificationsEnabled
+                    preferencesManager.vibrationEnabled = firestoreSettings.vibrationEnabled
+                    preferencesManager.soundEnabled = firestoreSettings.soundEnabled
+                    preferencesManager.darkThemeEnabled = firestoreSettings.darkThemeEnabled
+                    preferencesManager.analyticsEnabled = firestoreSettings.analyticsEnabled
+
+                    _settings.value = firestoreSettings
+                } else {
+                    // Si no hay configuraciones en Firestore, guardar las locales
+                    saveSettingsToFirestore()
                 }
             } catch (e: Exception) {
-                // Si no existen configuraciones, usar las predeterminadas
-                _settings.value = AppSettings()
+                // En caso de error, usar las configuraciones locales
+                android.util.Log.e("SettingsViewModel", "Error loading settings: ${e.message}")
             }
         }
     }
@@ -63,7 +98,7 @@ class SettingsViewModel @Inject constructor(
     /**
      * Guardar configuraciones en Firestore
      */
-    private fun saveSettings() {
+    private fun saveSettingsToFirestore() {
         viewModelScope.launch {
             try {
                 val userId = firebaseAuth.currentUser?.uid ?: return@launch
@@ -74,7 +109,6 @@ class SettingsViewModel @Inject constructor(
                     "soundEnabled" to _settings.value.soundEnabled,
                     "darkThemeEnabled" to _settings.value.darkThemeEnabled,
                     "analyticsEnabled" to _settings.value.analyticsEnabled,
-                    "debugModeEnabled" to _settings.value.debugModeEnabled,
                     "lastUpdated" to System.currentTimeMillis()
                 )
 
@@ -82,8 +116,10 @@ class SettingsViewModel @Inject constructor(
                     .document(userId)
                     .set(settingsMap)
                     .await()
+
+                android.util.Log.d("SettingsViewModel", "Settings saved to Firestore successfully")
             } catch (e: Exception) {
-                _uiState.value = SettingsUiState.Error("Error al guardar configuración")
+                android.util.Log.e("SettingsViewModel", "Error saving to Firestore: ${e.message}")
             }
         }
     }
@@ -92,64 +128,173 @@ class SettingsViewModel @Inject constructor(
      * Actualizar configuración de notificaciones
      */
     fun updateNotificationsSetting(enabled: Boolean) {
-        _settings.value = _settings.value.copy(notificationsEnabled = enabled)
+        viewModelScope.launch {
+            try {
+                // 1. Actualizar SharedPreferences PRIMERO
+                preferencesManager.notificationsEnabled = enabled
 
-        // Si se desactivan las notificaciones, desactivar también vibración y sonido
-        if (!enabled) {
-            _settings.value = _settings.value.copy(
-                vibrationEnabled = false,
-                soundEnabled = false
-            )
+                // 2. Configurar Firebase Messaging
+                notificationManager.setNotificationsEnabled(enabled)
+
+                // 3. Si se desactivan las notificaciones, desactivar también vibración y sonido
+                if (!enabled) {
+                    preferencesManager.vibrationEnabled = false
+                    preferencesManager.soundEnabled = false
+                }
+
+                // 4. Actualizar estado local
+                _settings.value = _settings.value.copy(
+                    notificationsEnabled = enabled,
+                    vibrationEnabled = if (enabled) _settings.value.vibrationEnabled else false,
+                    soundEnabled = if (enabled) _settings.value.soundEnabled else false
+                )
+
+                // 5. Guardar en Firestore (background)
+                saveSettingsToFirestore()
+
+                // 6. Verificar permisos del sistema
+                if (enabled && !notificationManager.areNotificationsEnabled()) {
+                    _uiState.value = SettingsUiState.Error(
+                        "Las notificaciones están bloqueadas en la configuración del sistema. " +
+                                "Por favor, actívalas en Configuración > Aplicaciones > Angelito RD"
+                    )
+                } else {
+                    _uiState.value = SettingsUiState.Success(
+                        if (enabled) "Notificaciones activadas ✓" else "Notificaciones desactivadas"
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = SettingsUiState.Error(
+                    "Error al actualizar notificaciones: ${e.message}"
+                )
+            }
         }
-
-        saveSettings()
-        _uiState.value = SettingsUiState.Success(
-            if (enabled) "Notificaciones activadas" else "Notificaciones desactivadas"
-        )
     }
 
     /**
      * Actualizar configuración de vibración
      */
     fun updateVibrationSetting(enabled: Boolean) {
-        _settings.value = _settings.value.copy(vibrationEnabled = enabled)
-        saveSettings()
-        _uiState.value = SettingsUiState.Success(
-            if (enabled) "Vibración activada" else "Vibración desactivada"
-        )
+        viewModelScope.launch {
+            // 1. Actualizar SharedPreferences
+            preferencesManager.vibrationEnabled = enabled
+            notificationManager.setVibrationEnabled(enabled)
+
+            // 2. Actualizar estado local
+            _settings.value = _settings.value.copy(vibrationEnabled = enabled)
+
+            // 3. Guardar en Firestore
+            saveSettingsToFirestore()
+
+            _uiState.value = SettingsUiState.Success(
+                if (enabled) "Vibración activada ✓" else "Vibración desactivada"
+            )
+        }
     }
 
     /**
      * Actualizar configuración de sonido
      */
     fun updateSoundSetting(enabled: Boolean) {
-        _settings.value = _settings.value.copy(soundEnabled = enabled)
-        saveSettings()
-        _uiState.value = SettingsUiState.Success(
-            if (enabled) "Sonido activado" else "Sonido desactivado"
-        )
+        viewModelScope.launch {
+            // 1. Actualizar SharedPreferences
+            preferencesManager.soundEnabled = enabled
+            notificationManager.setSoundEnabled(enabled)
+
+            // 2. Actualizar estado local
+            _settings.value = _settings.value.copy(soundEnabled = enabled)
+
+            // 3. Guardar en Firestore
+            saveSettingsToFirestore()
+
+            _uiState.value = SettingsUiState.Success(
+                if (enabled) "Sonido activado ✓" else "Sonido desactivado"
+            )
+        }
     }
 
     /**
      * Actualizar tema oscuro
      */
     fun updateDarkThemeSetting(enabled: Boolean) {
+        Log.d("SettingsViewModel", "updateDarkThemeSetting called with: $enabled")
+
+        // 1. Actualizar SharedPreferences
+        preferencesManager.darkThemeEnabled = enabled
+
+        // 2. Actualizar estado local
         _settings.value = _settings.value.copy(darkThemeEnabled = enabled)
-        saveSettings()
+
+        // 3. Guardar en Firestore
+        //saveSettingsToFirestore()
+
         _uiState.value = SettingsUiState.Success(
-            if (enabled) "Tema oscuro activado" else "Tema claro activado"
+            if (enabled) "Tema oscuro activado ✓"
+            else "Tema claro activado ✓"
         )
+
+        /*viewModelScope.launch {
+
+            // 1. Actualizar SharedPreferences
+            preferencesManager.darkThemeEnabled = enabled
+
+            // 2. Actualizar estado local
+            _settings.value = _settings.value.copy(darkThemeEnabled = enabled)
+
+            // 3. Guardar en Firestore
+            saveSettingsToFirestore()
+
+            _uiState.value = SettingsUiState.Success(
+                if (enabled) "Tema oscuro activado ✓"
+                else "Tema claro activado ✓"
+            )
+        }*/
     }
 
     /**
      * Actualizar análisis
      */
     fun updateAnalyticsSetting(enabled: Boolean) {
-        _settings.value = _settings.value.copy(analyticsEnabled = enabled)
-        saveSettings()
-        _uiState.value = SettingsUiState.Success(
-            if (enabled) "Análisis activado" else "Análisis desactivado"
-        )
+        viewModelScope.launch {
+            // 1. Actualizar SharedPreferences
+            preferencesManager.analyticsEnabled = enabled
+
+            // TODO: Configurar Firebase Analytics
+            // FirebaseAnalytics.getInstance(context).setAnalyticsCollectionEnabled(enabled)
+
+            // 2. Actualizar estado local
+            _settings.value = _settings.value.copy(analyticsEnabled = enabled)
+
+            // 3. Guardar en Firestore
+            saveSettingsToFirestore()
+
+            _uiState.value = SettingsUiState.Success(
+                if (enabled) "Análisis activado ✓" else "Análisis desactivado"
+            )
+        }
+    }
+
+    /**
+     * Probar notificaciones
+     */
+    fun testNotification() {
+        if (!preferencesManager.notificationsEnabled) {
+            _uiState.value = SettingsUiState.Error(
+                "Las notificaciones están desactivadas. Por favor, actívalas primero."
+            )
+            return
+        }
+
+        try {
+            notificationManager.showTestNotification()
+            _uiState.value = SettingsUiState.Success(
+                "Notificación de prueba enviada ✓"
+            )
+        } catch (e: Exception) {
+            _uiState.value = SettingsUiState.Error(
+                "Error al enviar notificación: ${e.message}"
+            )
+        }
     }
 
     /**
@@ -165,10 +310,10 @@ class SettingsViewModel @Inject constructor(
 
                 val sizeInMB = cacheSize / (1024.0 * 1024.0)
                 _uiState.value = SettingsUiState.Success(
-                    "Caché limpiado: ${String.format("%.2f", sizeInMB)} MB liberados"
+                    "Caché limpiado: ${String.format("%.2f", sizeInMB)} MB liberados ✓"
                 )
             } catch (e: Exception) {
-                _uiState.value = SettingsUiState.Error("Error al limpiar caché")
+                _uiState.value = SettingsUiState.Error("Error al limpiar caché: ${e.message}")
             }
         }
     }
@@ -214,7 +359,7 @@ class SettingsViewModel @Inject constructor(
                     .delete()
                     .await()
 
-                // 2. Eliminar configuraciones
+                // 2. Eliminar configuraciones de usuario
                 firestore.collection("user_settings")
                     .document(userId)
                     .delete()
@@ -242,7 +387,10 @@ class SettingsViewModel @Inject constructor(
                     doc.reference.update("members", updatedMembers).await()
                 }
 
-                // 5. Eliminar cuenta de Firebase Auth
+                // 5. Limpiar preferencias locales
+                preferencesManager.clearAll()
+
+                // 6. Eliminar cuenta de Firebase Auth
                 user.delete().await()
 
                 _uiState.value = SettingsUiState.AccountDeleted
@@ -258,18 +406,6 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = SettingsUiState.Initial
     }
 }
-
-/**
- * Data class para las configuraciones de la app
- */
-data class AppSettings(
-    val notificationsEnabled: Boolean = true,
-    val vibrationEnabled: Boolean = true,
-    val soundEnabled: Boolean = true,
-    val darkThemeEnabled: Boolean = false,
-    val analyticsEnabled: Boolean = true,
-    val debugModeEnabled: Boolean = false
-)
 
 /**
  * Estados de la UI de configuración

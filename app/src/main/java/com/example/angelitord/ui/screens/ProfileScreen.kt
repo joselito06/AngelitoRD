@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.angelitord.ui.components.AppTopBar
 import com.example.angelitord.viewmodel.ProfileUiState
 import com.example.angelitord.viewmodel.ProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
@@ -62,7 +63,11 @@ fun ProfileScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            AppTopBar(
+                title = "Mi Perfil",
+                onNavigationClick = onNavigateBack
+            )
+            /*TopAppBar(
                 title = { Text("Mi Perfil") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -72,7 +77,7 @@ fun ProfileScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
-            )
+            )*/
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->

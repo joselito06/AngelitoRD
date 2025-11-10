@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.angelitord.models.AngelitoGroup
+import com.example.angelitord.ui.components.AppTopBar
 import com.example.angelitord.viewmodel.GroupUiState
 import com.example.angelitord.viewmodel.GroupViewModel
 import java.text.SimpleDateFormat
@@ -60,17 +61,11 @@ fun EditGroupScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Editar Grupo") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+            AppTopBar(
+                title = "Editar Grupo",
+                onNavigationClick = onNavigateBack
             )
+
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
@@ -83,7 +78,7 @@ fun EditGroupScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "✏️ Modificar Información",
+                text = "Modificar Información",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 24.dp)

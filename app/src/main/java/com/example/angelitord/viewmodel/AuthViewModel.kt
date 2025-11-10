@@ -178,11 +178,30 @@ class AuthViewModel @Inject constructor(
                     return@launch
                 }
 
+                // Enviar correo de recuperación
                 firebaseAuth.sendPasswordResetEmail(email).await()
-                _authState.value = AuthState.Success("Email de recuperación enviado. Revisa tu bandeja de entrada")
+                _authState.value = AuthState.PasswordResetSent(
+                    "Se ha enviado un correo a $email con instrucciones para restablecer tu contraseña. " +
+                            "Por favor revisa tu bandeja de entrada y carpeta de spam."
+                )
+                //_authState.value = AuthState.Success("Email de recuperación enviado. Revisa tu bandeja de entrada")
 
             } catch (e: Exception) {
-                _authState.value = AuthState.Error("Error al enviar email: ${e.message}")
+                //_authState.value = AuthState.Error("Error al enviar email: ${e.message}")
+                _authState.value = when {
+                    e.message?.contains("user-not-found") == true -> {
+                        AuthState.Error("No existe una cuenta con este correo electrónico")
+                    }
+                    e.message?.contains("invalid-email") == true -> {
+                        AuthState.Error("El correo electrónico no es válido")
+                    }
+                    e.message?.contains("network") == true -> {
+                        AuthState.Error("Error de conexión. Por favor verifica tu internet")
+                    }
+                    else -> {
+                        AuthState.Error("Error al enviar correo: ${e.message}")
+                    }
+                }
             }
         }
     }
@@ -200,4 +219,5 @@ sealed class AuthState {
     object Loading : AuthState()
     data class Success(val message: String) : AuthState()
     data class Error(val message: String) : AuthState()
+    data class PasswordResetSent(val message: String) : AuthState()
 }

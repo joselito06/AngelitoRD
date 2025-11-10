@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.example.angelitord.models.AngelitoGroup
 import com.example.angelitord.models.GroupStatus
 import com.example.angelitord.models.User
+import com.example.angelitord.ui.components.AppTopBar
 import com.example.angelitord.utils.ShareHelper
 import com.example.angelitord.viewmodel.GroupUiState
 import com.example.angelitord.viewmodel.GroupViewModel
@@ -110,7 +111,112 @@ fun GroupDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            AppTopBar(
+                title = currentGroup?.groupName ?: "Cargando...",
+                onNavigationClick = onNavigateBack,
+                actions = {
+                    // Menú
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menú")
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        // Opciones del admin
+                        if (currentGroup?.adminId == currentUserId) {
+                            // Editar Grupo
+                            DropdownMenuItem(
+                                text = { Text("Editar Grupo") },
+                                onClick = {
+                                    onNavigateToEdit()  // Nueva función
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Edit, contentDescription = null)
+                                }
+                            )
+
+                            HorizontalDivider()
+
+                            // Disolver Sorteo (solo si ya se hizo)
+                            if (currentGroup?.status == GroupStatus.ASSIGNED ||
+                                currentGroup?.status == GroupStatus.REVEALED) {
+                                DropdownMenuItem(
+                                    text = { Text("Disolver Sorteo") },
+                                    onClick = {
+                                        showDissolveDrawDialog = true
+                                        showMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    }
+                                )
+                            }
+                            // Bloquear/Desbloquear
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (currentGroup?.isLocked == true) "Desbloquear Grupo" else "Bloquear Grupo")
+                                },
+                                onClick = {
+                                    currentUserId?.let { viewModel.toggleGroupLock(groupId, it) }
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        if (currentGroup?.isLocked == true) Icons.Default.LockOpen else Icons.Default.Lock,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
+                            // Eliminar Grupo
+                            DropdownMenuItem(
+                                text = { Text("Eliminar Grupo") },
+                                onClick = {
+                                    showDeleteDialog = true
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.error
+                                )
+                            )
+                        } else {
+                            // Opción para salir (no admin)
+                            DropdownMenuItem(
+                                text = { Text("Salir del Grupo") },
+                                onClick = {
+                                    showLeaveDialog = true
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.ExitToApp,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.error
+                                )
+                            )
+                        }
+                    }
+                }
+
+            )
+            /*TopAppBar(
                 title = { Text(currentGroup?.groupName ?: "Cargando...") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -220,7 +326,7 @@ fun GroupDetailScreen(
                         }
                     }
                 }
-            )
+            )*/
         },
         floatingActionButton = {
             if (currentGroup?.adminId == currentUserId && currentGroup?.status == GroupStatus.READY) {

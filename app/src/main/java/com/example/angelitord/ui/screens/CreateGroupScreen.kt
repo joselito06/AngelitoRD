@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.angelitord.ui.components.AppTopBar
 import com.example.angelitord.viewmodel.GroupUiState
 import com.example.angelitord.viewmodel.GroupViewModel
 import com.google.firebase.auth.FirebaseAuth
@@ -53,6 +54,7 @@ import java.util.Locale
 fun CreateGroupScreen(
     viewModel: GroupViewModel,
     onGroupCreated: (String) -> Unit,
+    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var groupName by remember { mutableStateOf("") }
@@ -85,6 +87,12 @@ fun CreateGroupScreen(
     }
 
     Scaffold(
+        topBar = {
+            AppTopBar(
+                title = "Crear Grupo de Angelito",
+                onNavigationClick = onNavigateBack
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
@@ -95,12 +103,12 @@ fun CreateGroupScreen(
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
+            /*Text(
                 text = "🎁 Crear Grupo de Angelito",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 32.dp)
-            )
+            )*/
 
             // Nombre del grupo
             OutlinedTextField(
