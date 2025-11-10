@@ -59,6 +59,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.angelitord.R
+import com.example.angelitord.ui.components.ForgotPasswordDialog
 import com.example.angelitord.viewmodel.AuthState
 import com.example.angelitord.viewmodel.AuthViewModel
 
@@ -77,6 +78,7 @@ fun LoginScreen(
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
 
     // Observar cambios en el estado de autenticación
     LaunchedEffect(authState) {
@@ -208,7 +210,7 @@ fun LoginScreen(
 
                 // Olvidé mi contraseña
                 TextButton(
-                    onClick = { /* TODO: Navegar a recuperar contraseña */ },
+                    onClick = { showForgotPasswordDialog = true},
                     modifier = Modifier.align(Alignment.End)
                 ) {
                     Text("¿Olvidaste tu contraseña?")
@@ -297,7 +299,21 @@ fun LoginScreen(
                         )
                     }
                 }
+
+                // Al final del Column, antes del último }, agrega:
+                if (showForgotPasswordDialog) {
+                    ForgotPasswordDialog(
+                        onDismiss = { showForgotPasswordDialog = false },
+                        onSendEmail = { email ->
+                            viewModel.resetPassword(email)
+                            showForgotPasswordDialog = false
+                        }
+                    )
+                }
+
             }
         }
+
+
     }
 }

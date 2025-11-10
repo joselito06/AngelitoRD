@@ -34,6 +34,7 @@ import com.example.angelitord.ui.screens.GroupDetailScreen
 import com.example.angelitord.ui.screens.JoinGroupScreen
 import com.example.angelitord.ui.screens.LoginScreen
 import com.example.angelitord.ui.screens.ProfileScreen
+import com.example.angelitord.ui.screens.SettingsScreen
 import com.example.angelitord.ui.screens.SignUpScreen
 import com.example.angelitord.ui.theme.AngelitoRDTheme
 import com.example.angelitord.viewmodel.AuthViewModel
@@ -73,6 +74,15 @@ fun AngelitoApp(
 
     // Determinar la pantalla inicial basada en el estado de autenticación
     val startDestination = if (currentUser != null) "home" else "login"
+
+    // ✅ Observar si la sesión se cierra
+    LaunchedEffect(currentUser) {
+        if (currentUser == null) {
+            navController.navigate("login") {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -135,8 +145,7 @@ fun AngelitoApp(
                     navController.navigate("profile")
                 },
                 onNavigateToSettings = {  // ← Para futuro
-                    // navController.navigate("settings")
-                    // Por ahora, muestra un mensaje
+                    navController.navigate("settings")
                 }
             )
         }
@@ -193,6 +202,18 @@ fun AngelitoApp(
                     }
                 )
             }
+        }
+
+        composable("settings") {
+            SettingsScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToAbout = {
+                    // navController.navigate("about")
+                }
+            )
         }
     }
 }
