@@ -37,18 +37,14 @@ fun JoinGroupScreen(
 
     // Observar el estado
     LaunchedEffect(uiState) {
-        when (uiState) {
+        when (val state = uiState) {
             is GroupUiState.MemberAdded -> {
-                snackbarHostState.showSnackbar(
-                    message = "¡Te has unido al grupo exitosamente!",
-                    duration = SnackbarDuration.Short
-                )
                 viewModel.resetState()
                 onGroupJoined(groupCode)
             }
             is GroupUiState.Error -> {
                 snackbarHostState.showSnackbar(
-                    message = (uiState as GroupUiState.Error).message,
+                    message = state.message,
                     duration = SnackbarDuration.Long
                 )
                 viewModel.resetState()

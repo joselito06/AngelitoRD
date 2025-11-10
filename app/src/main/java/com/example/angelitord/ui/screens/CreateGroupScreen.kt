@@ -68,19 +68,14 @@ fun CreateGroupScreen(
 
     // Observar el estado y navegar cuando se cree el grupo
     LaunchedEffect(uiState) {
-        when (uiState) {
+        when (val state = uiState) {
             is GroupUiState.GroupCreated -> {
-                val groupId = (uiState as GroupUiState.GroupCreated).groupId
-                snackbarHostState.showSnackbar(
-                    message = "¡Grupo creado exitosamente!",
-                    duration = SnackbarDuration.Short
-                )
                 viewModel.resetState()
-                onGroupCreated(groupId) // Navegar automáticamente
+                onGroupCreated(state.groupId) // Navegar automáticamente
             }
             is GroupUiState.Error -> {
                 snackbarHostState.showSnackbar(
-                    message = (uiState as GroupUiState.Error).message,
+                    message = state.message,
                     duration = SnackbarDuration.Long
                 )
                 viewModel.resetState()

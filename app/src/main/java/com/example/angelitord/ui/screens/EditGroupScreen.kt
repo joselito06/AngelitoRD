@@ -41,18 +41,15 @@ fun EditGroupScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(uiState) {
-        when (uiState) {
+        when (val state = uiState) {
             is GroupUiState.GroupUpdated -> {
-                snackbarHostState.showSnackbar(
-                    message = "Grupo actualizado exitosamente",
-                    duration = SnackbarDuration.Short
-                )
+
                 viewModel.resetState()
                 onNavigateBack()
             }
             is GroupUiState.Error -> {
                 snackbarHostState.showSnackbar(
-                    message = (uiState as GroupUiState.Error).message,
+                    message = state.message,
                     duration = SnackbarDuration.Long
                 )
                 viewModel.resetState()

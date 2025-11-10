@@ -45,18 +45,14 @@ fun SignUpScreen(
 
     // Observar cambios en el estado de autenticación
     LaunchedEffect(authState) {
-        when (authState) {
+        when (val state = authState) {
             is AuthState.Success -> {
-                snackbarHostState.showSnackbar(
-                    message = (authState as AuthState.Success).message,
-                    duration = SnackbarDuration.Short
-                )
                 onSignUpSuccess()
                 viewModel.resetAuthState()
             }
             is AuthState.Error -> {
                 snackbarHostState.showSnackbar(
-                    message = (authState as AuthState.Error).message,
+                    message = state.message,
                     duration = SnackbarDuration.Long
                 )
                 viewModel.resetAuthState()
