@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,7 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.angelitord.models.EventLocation
 import com.example.angelitord.ui.components.AppTopBar
+import com.example.angelitord.ui.components.LocationDisplayCard
+import com.example.angelitord.ui.components.OSMLocationPickerDialog
 import com.example.angelitord.viewmodel.GroupUiState
 import com.example.angelitord.viewmodel.GroupViewModel
 import com.google.firebase.auth.FirebaseAuth
@@ -63,10 +67,17 @@ fun CreateGroupScreen(
     var eventDate by remember { mutableStateOf<Long?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
+    // ✅ Estado para ubicación con OSM
+    var eventLocation by remember { mutableStateOf<EventLocation?>(null) }
+    var showLocationPicker by remember { mutableStateOf(false) }
+
     val scrollState = rememberScrollState()
     val datePickerState = rememberDatePickerState()
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val eventLocationFlow = viewModel.locationModel.collectAsState(initial = null)
+
 
     // Observar el estado y navegar cuando se cree el grupo
     LaunchedEffect(uiState) {
@@ -75,6 +86,7 @@ fun CreateGroupScreen(
                 viewModel.resetState()
                 onGroupCreated(state.groupId) // Navegar automáticamente
             }
+
             is GroupUiState.Error -> {
                 snackbarHostState.showSnackbar(
                     message = state.message,
@@ -82,6 +94,7 @@ fun CreateGroupScreen(
                 )
                 viewModel.resetState()
             }
+
             else -> {}
         }
     }
@@ -101,14 +114,9 @@ fun CreateGroupScreen(
                 .padding(padding)
                 .padding(16.dp)
                 .verticalScroll(scrollState),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            //verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            /*Text(
-                text = "🎁 Crear Grupo de Angelito",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 32.dp)
-            )*/
 
             // Nombre del grupo
             OutlinedTextField(
@@ -171,6 +179,36 @@ fun CreateGroupScreen(
                 enabled = uiState !is GroupUiState.Loading
             )
 
+            // ✅ UBICACIÓN CON OSM
+            Column {
+                Text(
+                    text = "Ubicación del evento",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LocationDisplayCard(
+                    location = eventLocation,
+                    onEditClick = { showLocationPicker = true }
+                )
+
+                if (eventLocation != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        onClick = { /*eventLocation = null*/ }
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Quitar ubicación")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Botón crear
             Button(
                 onClick = {
@@ -181,7 +219,12 @@ fun CreateGroupScreen(
                             adminId = currentUserId,
                             budget = budget.toDoubleOrNull(),
                             eventDate = eventDate,
-                            description = description
+                            description = description,
+                            locationName = eventLocation!!.placeId,
+                            locationLatitude = eventLocation!!.latitude,
+                            locationLongitude = eventLocation!!.longitude,
+                            locationAddress = eventLocation!!.address,
+                            locationPlaceName = eventLocation!!.placeName
                         )
                     }
                 },
@@ -263,6 +306,50 @@ fun CreateGroupScreen(
                     }
                 )
             }
+        }
+
+        // Date Picker Dialog
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            eventDate = datePickerState.selectedDateMillis
+                            showDatePicker = false
+                        }
+                    ) {
+                        Text("Aceptar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            ) {
+                DatePicker(
+                    state = datePickerState,
+                    title = {
+                        Text(
+                            text = "Seleccionar fecha del evento",
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                )
+            }
+        }
+
+        // ✅ Diálogo de ubicación con OSM
+        if (showLocationPicker) {
+            OSMLocationPickerDialog(
+                initialLocation = eventLocation,
+                onDismiss = { showLocationPicker = false },
+                onLocationSelected = { location ->
+                    eventLocation = location
+                    showLocationPicker = false
+                }
+            )
         }
     }
 }

@@ -55,6 +55,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
+    //
+    implementation(libs.openstreetmap.oms)
+    implementation(libs.squareup.okhttp)
+    implementation("com.google.android.gms:play-services-location:21.1.0")
+    implementation("org.json:json:20231013")
+
     //Navigation
     implementation(libs.navigation.compose)
 
@@ -63,6 +69,7 @@ dependencies {
 
     //Dagger Hilt
     implementation(libs.dagger.hilt)
+    implementation(libs.androidx.compose.foundation)
     kapt(libs.dagger.hilt.compiler)
     implementation(libs.dagger.hilt.compose)
 

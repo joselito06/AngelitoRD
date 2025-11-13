@@ -3,6 +3,7 @@ package com.example.angelitord.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.angelitord.models.AngelitoGroup
+import com.example.angelitord.models.EventLocation
 import com.example.angelitord.models.User
 import com.example.angelitord.repository.UnitOfWork
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +29,10 @@ class GroupViewModel @Inject constructor(
     private val _groupMembers = MutableStateFlow<List<User>>(emptyList())
     val groupMembers: StateFlow<List<User>> = _groupMembers.asStateFlow()
 
+    private val _locationModel = MutableStateFlow<EventLocation?>(null)
+    val locationModel: StateFlow<EventLocation?> = _locationModel.asStateFlow()
+
+
     /**
      * Crear un nuevo grupo
      */
@@ -36,12 +41,17 @@ class GroupViewModel @Inject constructor(
         adminId: String,
         budget: Double? = null,
         eventDate: Long? = null,
-        description: String = ""
+        description: String = "",
+        locationName: String = "", // Nombre del lugar (ej: "Casa de Juan")
+        locationLatitude: Double? = null, // Latitud para el mapa
+        locationLongitude: Double? = null, // Longitud para el mapa
+        locationAddress: String = "", // Dirección exacta del lugar
+        locationPlaceName: String = "", // URL de la imagen del lugar
     ) {
         viewModelScope.launch {
             _uiState.value = GroupUiState.Loading
 
-            repository.angelitoRepository.createGroup(groupName, adminId, budget, eventDate, description)
+            repository.angelitoRepository.createGroup(groupName, adminId, budget, eventDate, description, locationName, locationLatitude, locationLongitude, locationAddress, locationPlaceName)
                 .onSuccess { groupId ->
                     _uiState.value = GroupUiState.GroupCreated(groupId)
                     loadUserGroups(adminId)
@@ -69,6 +79,11 @@ class GroupViewModel @Inject constructor(
                 }
         }
     }
+
+    fun addEventLocation(eventLocation: EventLocation) {
+        _locationModel.value = eventLocation
+    }
+
 
     /**
      * Remover miembro del grupo

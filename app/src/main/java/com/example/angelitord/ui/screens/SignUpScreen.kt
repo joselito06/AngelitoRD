@@ -1,6 +1,7 @@
 package com.example.angelitord.ui.screens
 
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -15,12 +16,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.angelitord.R
 import com.example.angelitord.viewmodel.AuthState
 import com.example.angelitord.viewmodel.AuthViewModel
@@ -30,7 +36,9 @@ import com.example.angelitord.viewmodel.AuthViewModel
 fun SignUpScreen(
     viewModel: AuthViewModel,
     onSignUpSuccess: () -> Unit,
-    onNavigateToLogin: () -> Unit
+    onNavigateToLogin: () -> Unit,
+    onNavigateToTerms: () -> Unit,      // ✅ AGREGAR
+    onNavigateToPrivacy: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -274,8 +282,137 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botón de Crear Cuenta
+            // Estado para el checkbox
+            var termsAccepted by remember { mutableStateOf(false) }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Checkbox de Términos y Privacidad
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { termsAccepted = !termsAccepted }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = termsAccepted,
+                        onCheckedChange = { termsAccepted = it }
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column {
+                        Text(
+                            text = buildAnnotatedString {
+                                append("Acepto los ")
+                                withStyle(
+                                    style = SpanStyle(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                ) {
+                                    append("Términos y Condiciones")
+                                }
+                                append(" y la ")
+                                withStyle(
+                                    style = SpanStyle(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                ) {
+                                    append("Política de Privacidad")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.clickable {
+                                // Permitir hacer click en el texto también
+                                termsAccepted = !termsAccepted
+                            }
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            TextButton(
+                                onClick = onNavigateToTerms,
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    text = "Leer términos",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            TextButton(
+                                onClick = onNavigateToPrivacy,
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    text = "Leer política",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Botón de Registrarse (actualizar para validar términos)
             Button(
+                onClick = {
+                    if (!termsAccepted) {
+                        // Mostrar error
+                        // Puedes usar un Snackbar o un estado de error
+                        return@Button
+                    }
+
+                    if (name.isBlank() || email.isBlank() || password.isBlank() || confirmPassword.isBlank()) {
+                        return@Button
+                    }
+
+                    if (password != confirmPassword) {
+                        return@Button
+                    }
+
+                    viewModel.signUp(name, email, password, confirmPassword)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                enabled = name.isNotBlank() &&
+                        email.isNotBlank() &&
+                        password.isNotBlank() &&
+                        confirmPassword.isNotBlank() &&
+                        password == confirmPassword &&
+                        termsAccepted  // ✅ Validar que aceptó términos
+            ) {
+                Text(
+                    text = "Registrarse",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Botón de Crear Cuenta
+            /*Button(
                 onClick = {
                     focusManager.clearFocus()
                     viewModel.signUp(name, email, password, confirmPassword)
@@ -300,7 +437,7 @@ fun SignUpScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
-            }
+            }*/
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -318,6 +455,65 @@ fun SignUpScreen(
                     Text("Iniciar Sesión")
                 }
             }
+
+            /*Spacer(modifier = Modifier.height(24.dp))
+
+            // Términos y Privacidad
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Al continuar, aceptas nuestros",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    TextButton(
+                        onClick = onNavigateToTerms,
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = "Términos y Condiciones",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Text(
+                        text = "y",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+
+                    TextButton(
+                        onClick = onNavigateToPrivacy,
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = "Política de Privacidad",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )*/
         }
     }
 }

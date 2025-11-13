@@ -19,7 +19,10 @@ data class AngelitoGroup(
     val isLocked: Boolean = false, // Si está bloqueado no pueden unirse más personas
     val locationName: String = "", // Nombre del lugar (ej: "Casa de Juan")
     val locationLatitude: Double? = null, // Latitud para el mapa
-    val locationLongitude: Double? = null // Longitud para el mapa
+    val locationLongitude: Double? = null, // Longitud para el mapa
+    val locationAddress: String = "", // Dirección exacta del lugar
+    val locationPlaceName: String = "", // URL de la imagen del lugar
+
 )
 
 enum class GroupStatus {

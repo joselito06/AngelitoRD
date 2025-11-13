@@ -23,7 +23,12 @@ class AngelitoRepository @Inject constructor(
         adminId: String,
         budget: Double? = null,
         eventDate: Long? = null,
-        description: String = ""
+        description: String = "",
+        locationName: String = "", // Nombre del lugar (ej: "Casa de Juan")
+        locationLatitude: Double? = null, // Latitud para el mapa
+        locationLongitude: Double? = null, // Longitud para el mapa
+        locationAddress: String = "", // Dirección exacta del lugar
+        locationPlaceName: String = "", // URL de la imagen del lugar
     ): Result<String> = try {
         val group = AngelitoGroup(
             groupName = groupName,
@@ -33,7 +38,12 @@ class AngelitoRepository @Inject constructor(
             budget = budget,
             eventDate = eventDate,
             description = description,
-            isLocked = false
+            isLocked = false,
+            locationName = locationName,
+            locationLatitude = locationLatitude,
+            locationLongitude = locationLongitude,
+            locationAddress = locationAddress,
+            locationPlaceName = locationPlaceName
         )
 
         val documentRef = groupsCollection.add(group).await()
